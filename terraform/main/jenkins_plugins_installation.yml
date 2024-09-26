@@ -1,0 +1,63 @@
+---
+- name: Install Jenkins and SonarQube on EC2 Instance
+  hosts: your_ec2_instance  # Replace with your inventory group or hostname
+  become: true
+  vars:
+    sonar_scanner_version: "4.7.0.2747"
+    sonar_scanner_url: "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-{{ sonar_scanner_version }}-linux.zip"
+    sonar_scanner_dir: "/opt/sonar-scanner"
+  tasks:
+    - name: Update package lists
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Run Jenkins container
+      docker_container:
+        name: jenkins
+        image: jenkins/jenkins:lts
+        state: started
+        ports:
+          - "8080:8080"
+          - "50000:50000"
+        user: root
+
+    - name: Wait for Jenkins to start
+      wait_for:
+        port: 8080
+        delay: 30
+
+    - name: Download Jenkins CLI
+      get_url:
+        url: http://localhost:8080/jnlpJars/jenkins-cli.jar
+        dest: /tmp/jenkins-cli.jar
+
+    - name: Retrieve the initial admin password
+      command: docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+      register: admin_password
+
+    - name: Install Git plugin
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ admin_password.stdout }} install-plugin git
+
+    - name: Install NodeJS plugin
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ admin_password.stdout }} install-plugin nodejs:1.6.2
+
+    - name: Install Blue Ocean plugin
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ admin_password.stdout }} install-plugin blueocean:1.27.16
+
+    - name: Install SonarQube plugin
+      command: >
+        java -jar /tmp/jenkins-cli.jar -s http://localhost:8080/ -auth admin:{{ admin_password.stdout }} install-plugin sonar:2.17.2

@@ -1,0 +1,27 @@
+---
+- name: Install dependencies for the base image
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt package index
+      apt:
+        update_cache: yes
+
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: present
+
+    - name: Install Node.js and npm
+      apt:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - nodejs
+        - npm
+
+    - name: Install OpenJDK 11
+      apt:
+        name: openjdk-11-jdk
+        state: present
+
